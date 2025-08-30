@@ -9,6 +9,7 @@ interface RealtimeSession {
   userId: string;
   conversationId: string;
   memoryManager: SimpleMemoryManager;
+  lastUserMessage?: string;
 }
 
 interface ClientEvent {
@@ -37,7 +38,7 @@ export class RealtimeAgent {
     const conversationId = uuidv4();
 
     // Connect to OpenAI Realtime API
-    const openaiWs = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
+    const openaiWs = new WebSocket('wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01', {
       headers: {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
         'OpenAI-Beta': 'realtime=v1',
@@ -63,7 +64,7 @@ Respond naturally and helpfully, incorporating relevant information from the mem
         const sessionUpdate: ClientEvent = {
           type: 'session.update',
           session: {
-            model: 'gpt-4o-realtime-preview',
+            model: 'gpt-4o-realtime-preview-2024-10-01',
             modalities: ['text'], // Text only, no audio
             instructions: systemPrompt,
             voice: 'alloy',
@@ -112,6 +113,9 @@ Respond naturally and helpfully, incorporating relevant information from the mem
     if (!session) {
       throw new Error('Session not found');
     }
+
+    // Store the user message for conceptual extraction later
+    session.lastUserMessage = message;
 
     // Create conversation item with user message
     const conversationItem: ClientEvent = {
@@ -166,20 +170,19 @@ Respond naturally and helpfully, incorporating relevant information from the mem
             break;
 
           case 'response.done':
-            // Response completed, store as memory
+            // Response completed, extract conceptual memories
             const response = event.response;
             if (response.output && response.output.length > 0) {
               const output = response.output[0];
               if (output.content && output.content.length > 0) {
                 const textContent = output.content.find((c: any) => c.type === 'text');
-                if (textContent) {
-                  // Store the conversation as memory
-                  await session.memoryManager.storeMemory(
+                if (textContent && session.lastUserMessage) {
+                  // Extract conceptual memories from the conversation
+                  await session.memoryManager.extractConceptualMemories(
+                    session.lastUserMessage,
                     textContent.text,
                     session.userId,
-                    session.conversationId,
-                    'context',
-                    0.6
+                    session.conversationId
                   );
                 }
               }

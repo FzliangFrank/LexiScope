@@ -102,6 +102,115 @@ export class SimpleMemoryManager {
     }
   }
 
+  async extractConceptualMemories(
+    userMessage: string, 
+    assistantResponse: string, 
+    userId: string, 
+    conversationId: string
+  ): Promise<void> {
+    try {
+      const extractionPrompt = `Analyze this conversation and extract abstract concepts, entities, topics, and key information that would be useful for future conversations. Focus on extracting conceptual knowledge rather than the literal conversation.
+
+User: "${userMessage}"
+Assistant: "${assistantResponse}"
+
+Extract and return a JSON array of conceptual memories. Each memory should be:
+1. Abstract concepts (like "london", "bagel", "food", "travel")
+2. Entities (like "SF 49ers", "NFL", "American football")  
+3. Topics of interest (like "sports", "restaurants", "technology")
+4. Factual information (like "user likes Italian food", "user lives in NYC")
+5. Preferences (like "prefers morning workouts", "interested in AI")
+
+CRITICAL: Return ONLY a valid JSON array, no explanations, no markdown, no extra text. Just the JSON array:
+
+[
+  {"concept": "london", "type": "location", "importance": 0.8},
+  {"concept": "bagels", "type": "food", "importance": 0.7},
+  {"concept": "restaurant recommendations", "type": "preference", "importance": 0.6}
+]
+
+Max 5 concepts. Return only the JSON array.`;
+
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: extractionPrompt }],
+        temperature: 0.3,
+        max_tokens: 500,
+      });
+
+      const extractedText = response.choices[0].message.content?.trim();
+      if (!extractedText) return;
+
+      // Parse the JSON response (handle markdown code blocks)
+      let concepts: Array<{concept: string, type: string, importance: number}>;
+      try {
+        // Clean the response - remove markdown code blocks and extra text
+        let cleanedText = extractedText;
+        
+        // Remove markdown code blocks
+        cleanedText = cleanedText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+        
+        // Find JSON array in the response
+        const jsonMatch = cleanedText.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          cleanedText = jsonMatch[0];
+        }
+        
+        concepts = JSON.parse(cleanedText);
+        
+        // Validate that it's an array
+        if (!Array.isArray(concepts)) {
+          console.error('❌ Extracted concepts is not an array');
+          return;
+        }
+      } catch (parseError) {
+        console.error('❌ Failed to parse concept extraction:', parseError);
+        console.error('❌ Raw response:', extractedText);
+        
+        // Fallback: create simple concepts from the user message
+        const words = userMessage.toLowerCase().split(' ').filter(word => word.length > 3);
+        concepts = words.slice(0, 3).map(word => ({
+          concept: word,
+          type: 'context',
+          importance: 0.5
+        }));
+        console.log('⚠️ Using fallback concept extraction');
+      }
+
+      // Store each concept as a separate memory
+      for (const conceptData of concepts) {
+        if (conceptData.concept && conceptData.concept.trim()) {
+          await this.storeMemory(
+            conceptData.concept.trim(),
+            userId,
+            conversationId,
+            this.determineMemoryType(conceptData.type),
+            conceptData.importance || 0.5
+          );
+          console.log(`✅ Stored conceptual memory: "${conceptData.concept}"`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Concept extraction error:', error);
+      // Don't throw - this is a nice-to-have feature
+    }
+  }
+
+  private determineMemoryType(conceptType: string): Memory['memoryType'] {
+    const typeMapping: Record<string, Memory['memoryType']> = {
+      'preference': 'preference',
+      'fact': 'fact',
+      'location': 'fact',
+      'person': 'fact',
+      'entity': 'fact',
+      'topic': 'context',
+      'concept': 'context',
+      'interest': 'preference',
+    };
+    
+    return typeMapping[conceptType.toLowerCase()] || 'context';
+  }
+
   async searchMemories(query: string, userId: string, limit = 5): Promise<Memory[]> {
     try {
       const collection = this.client.collections.use(this.className);
@@ -200,7 +309,7 @@ class SimpleChatAgent {
 
       // Generate response
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4',
+        model: 'gpt-4o',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: message }
@@ -211,9 +320,10 @@ class SimpleChatAgent {
 
       const assistantResponse = response.choices[0].message.content || '';
 
-      // Store conversation as memory
-      await this.memoryManager.storeMemory(
-        `User: ${message}\nAssistant: ${assistantResponse}`,
+      // Extract and store conceptual memories instead of literal conversation
+      await this.memoryManager.extractConceptualMemories(
+        message,
+        assistantResponse,
         userId,
         conversationId
       );

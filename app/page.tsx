@@ -14,17 +14,22 @@ import { v4 as uuidv4 } from 'uuid';
 
 export default function ChatPage() {
   // User ID (in a real app, this would come from authentication)
-  const [userId] = useState(() => localStorage.getItem('lexiscope-user-id') || (() => {
-    const newId = uuidv4();
-    localStorage.setItem('lexiscope-user-id', newId);
-    return newId;
-  })());
+  const [userId] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('lexiscope-user-id') || (() => {
+        const newId = uuidv4();
+        localStorage.setItem('lexiscope-user-id', newId);
+        return newId;
+      })();
+    }
+    return uuidv4(); // Fallback for SSR
+  });
 
   const [conversationId] = useState(() => uuidv4());
   const [selectedMemories, setSelectedMemories] = useState<Memory[]>([]);
   const [attachedMemories, setAttachedMemories] = useState<Memory[]>([]);
   const [draggedMemory, setDraggedMemory] = useState<Memory | null>(null);
-  const [useRealtime, setUseRealtime] = useState(true); // Toggle between regular and realtime
+  const [useRealtime, setUseRealtime] = useState(false); // Start with regular chat for stability
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -35,6 +40,7 @@ export default function ChatPage() {
     isConnected, 
     isLoading: isRealtimeLoading, 
     error: realtimeError,
+    sessionId,
     createSession,
     sendMessage: sendRealtimeMessage,
     updateMemories: updateRealtimeMemories,
@@ -90,19 +96,23 @@ export default function ChatPage() {
     );
   };
 
-  // Initialize realtime session when component mounts
+  // Initialize realtime session when switching to realtime mode
   useEffect(() => {
-    if (useRealtime) {
-      createSession(attachedMemories).catch(console.error);
+    if (useRealtime && !sessionId && !isRealtimeLoading) {
+      console.log('🔄 Creating realtime session...');
+      createSession([]).catch((error) => {
+        console.error('❌ Failed to create realtime session:', error);
+      });
     }
-  }, [useRealtime, createSession]);
+  }, [useRealtime, sessionId, isRealtimeLoading, createSession]);
 
   // Update realtime memories when attached memories change
   useEffect(() => {
-    if (useRealtime && isConnected && attachedMemories.length > 0) {
+    if (useRealtime && isConnected && sessionId && attachedMemories.length > 0) {
+      console.log('🔄 Updating realtime memories...');
       updateRealtimeMemories(attachedMemories);
     }
-  }, [attachedMemories, isConnected, useRealtime, updateRealtimeMemories]);
+  }, [attachedMemories, isConnected, useRealtime, sessionId, updateRealtimeMemories]);
 
   // Chat handlers
   const handleSendMessage = async (message: string, memories: Memory[]) => {
@@ -124,6 +134,7 @@ export default function ChatPage() {
   };
 
   const handleToggleMode = () => {
+    console.log('🔄 Toggling mode to:', !useRealtime ? 'Realtime' : 'Standard');
     setUseRealtime(!useRealtime);
     setAttachedMemories([]);
     setSelectedMemories([]);
@@ -189,8 +200,8 @@ export default function ChatPage() {
                     }`} />
                     <span>
                       {hasError ? 'Error' : 
-                       useRealtime ? (isConnected ? 'Realtime' : 'Connecting') : 
-                       'Connected'}
+                       useRealtime ? (isConnected ? 'Realtime Active' : 'Connecting...') : 
+                       'Standard Mode'}
                     </span>
                   </div>
                   <span>•</span>
@@ -240,7 +251,7 @@ export default function ChatPage() {
                   Welcome to LexiScope!
                 </h3>
                 <p className="text-gray-600 mb-4">
-                  Experience real-time AI conversations with GPT-4 enhanced by your personal memory bank. 
+                  Experience real-time AI conversations with GPT-5 enhanced by your personal memory bank. 
                   Your conversations are remembered and used to personalize future interactions.
                 </p>
                 <div className="text-sm text-gray-500 space-y-1">
