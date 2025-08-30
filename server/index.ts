@@ -4,7 +4,10 @@ import dotenv from 'dotenv';
 import OpenAI from 'openai';
 import weaviate, { WeaviateClient, vectors } from 'weaviate-client';
 import { v4 as uuidv4 } from 'uuid';
+import { createServer } from 'http';
+import { WebSocketServer } from 'ws';
 import { Memory, ChatRequest, ChatResponse, MemoryRequest, SearchRequest } from './types';
+import { RealtimeAgent } from './realtime-agent';
 
 // Load environment variables
 dotenv.config();
@@ -27,7 +30,7 @@ const openai = new OpenAI({
 });
 
 // Simplified Memory Manager for hackathon
-class SimpleMemoryManager {
+export class SimpleMemoryManager {
   private client: WeaviateClient;
   private openai: OpenAI;
   private className = 'HackathonMemory';
@@ -229,6 +232,7 @@ class SimpleChatAgent {
 // Services will be initialized in startServer function
 let memoryManager: SimpleMemoryManager;
 let chatAgent: SimpleChatAgent;
+let realtimeAgent: RealtimeAgent;
 
 // Routes
 app.get('/health', (req, res) => {
@@ -307,6 +311,55 @@ app.post('/api/memories/search', async (req, res) => {
   }
 });
 
+// Realtime chat endpoints
+app.post('/api/realtime/session', async (req, res) => {
+  try {
+    const { userId, selectedMemories = [] } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId required' });
+    }
+
+    const sessionId = await realtimeAgent.createSession(userId, selectedMemories);
+    res.json({ sessionId });
+  } catch (error) {
+    console.error('❌ Create realtime session error:', error);
+    res.status(500).json({ error: 'Failed to create realtime session' });
+  }
+});
+
+app.post('/api/realtime/message', async (req, res) => {
+  try {
+    const { sessionId, message } = req.body;
+
+    if (!sessionId || !message) {
+      return res.status(400).json({ error: 'sessionId and message required' });
+    }
+
+    await realtimeAgent.sendMessage(sessionId, message);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Send realtime message error:', error);
+    res.status(500).json({ error: 'Failed to send message' });
+  }
+});
+
+app.post('/api/realtime/update-memories', async (req, res) => {
+  try {
+    const { sessionId, selectedMemories = [] } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId required' });
+    }
+
+    await realtimeAgent.updateSessionMemories(sessionId, selectedMemories);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Update realtime memories error:', error);
+    res.status(500).json({ error: 'Failed to update memories' });
+  }
+});
+
 // Start server
 async function startServer() {
   try {
@@ -320,14 +373,48 @@ async function startServer() {
     // Initialize services
     memoryManager = new SimpleMemoryManager(weaviateClient, openai);
     chatAgent = new SimpleChatAgent(openai, memoryManager);
+    realtimeAgent = new RealtimeAgent(memoryManager);
 
     // Initialize schema
     await memoryManager.initSchema();
     
-    app.listen(PORT, () => {
+    // Create HTTP server for both Express and WebSocket
+    const server = createServer(app);
+    
+    // Create WebSocket server for realtime communication
+    const wss = new WebSocketServer({ server, path: '/realtime' });
+    
+    wss.on('connection', (ws, req) => {
+      console.log('🔌 New WebSocket connection');
+      
+      ws.on('message', async (data) => {
+        try {
+          const message = JSON.parse(data.toString());
+          
+          if (message.type === 'join_session' && message.sessionId) {
+            // Set up event handlers for this session
+            realtimeAgent.setupEventHandlers(message.sessionId, (eventData) => {
+              ws.send(JSON.stringify(eventData));
+            });
+            
+            ws.send(JSON.stringify({ type: 'joined', sessionId: message.sessionId }));
+          }
+        } catch (error) {
+          console.error('❌ WebSocket message error:', error);
+          ws.send(JSON.stringify({ type: 'error', error: 'Invalid message format' }));
+        }
+      });
+      
+      ws.on('close', () => {
+        console.log('🔌 WebSocket connection closed');
+      });
+    });
+    
+    server.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);
       console.log(`📊 Health: http://localhost:${PORT}/health`);
       console.log(`🧠 Weaviate: ${process.env.WEAVIATE_URL || 'http://localhost:8080'}`);
+      console.log(`⚡ Realtime WebSocket: ws://localhost:${PORT}/realtime`);
     });
   } catch (error) {
     console.error('❌ Server start failed:', error);

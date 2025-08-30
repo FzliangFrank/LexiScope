@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Memory } from './types';
 import { useChat } from './hooks/useChat';
 import { useMemories } from './hooks/useMemories';
+import { useRealtimeChat } from './hooks/useRealtimeChat';
 import { MemoryPanel } from './components/MemoryPanel';
 import { ChatMessage } from './components/ChatMessage';
 import { ChatInput } from './components/ChatInput';
@@ -23,17 +24,33 @@ export default function ChatPage() {
   const [selectedMemories, setSelectedMemories] = useState<Memory[]>([]);
   const [attachedMemories, setAttachedMemories] = useState<Memory[]>([]);
   const [draggedMemory, setDraggedMemory] = useState<Memory | null>(null);
+  const [useRealtime, setUseRealtime] = useState(true); // Toggle between regular and realtime
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Hooks
-  const { messages, isLoading: isChatLoading, error: chatError, sendMessage, clearMessages } = useChat(userId);
+  const { messages: regularMessages, isLoading: isChatLoading, error: chatError, sendMessage, clearMessages } = useChat(userId);
+  const { 
+    messages: realtimeMessages, 
+    isConnected, 
+    isLoading: isRealtimeLoading, 
+    error: realtimeError,
+    createSession,
+    sendMessage: sendRealtimeMessage,
+    updateMemories: updateRealtimeMemories,
+    clearMessages: clearRealtimeMessages,
+  } = useRealtimeChat(userId);
   const { 
     memories, 
     isLoading: isMemoriesLoading, 
     error: memoriesError, 
     fetchMemories 
   } = useMemories(userId);
+
+  // Use appropriate messages and loading states based on mode
+  const messages = useRealtime ? realtimeMessages : regularMessages;
+  const isLoading = useRealtime ? isRealtimeLoading : isChatLoading;
+  const currentError = useRealtime ? realtimeError : chatError;
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -73,20 +90,48 @@ export default function ChatPage() {
     );
   };
 
+  // Initialize realtime session when component mounts
+  useEffect(() => {
+    if (useRealtime) {
+      createSession(attachedMemories).catch(console.error);
+    }
+  }, [useRealtime, createSession]);
+
+  // Update realtime memories when attached memories change
+  useEffect(() => {
+    if (useRealtime && isConnected && attachedMemories.length > 0) {
+      updateRealtimeMemories(attachedMemories);
+    }
+  }, [attachedMemories, isConnected, useRealtime, updateRealtimeMemories]);
+
   // Chat handlers
   const handleSendMessage = async (message: string, memories: Memory[]) => {
-    await sendMessage(message, memories, conversationId);
+    if (useRealtime) {
+      await sendRealtimeMessage(message);
+    } else {
+      await sendMessage(message, memories, conversationId);
+    }
   };
 
   const handleClearChat = () => {
-    clearMessages();
+    if (useRealtime) {
+      clearRealtimeMessages();
+    } else {
+      clearMessages();
+    }
+    setAttachedMemories([]);
+    setSelectedMemories([]);
+  };
+
+  const handleToggleMode = () => {
+    setUseRealtime(!useRealtime);
     setAttachedMemories([]);
     setSelectedMemories([]);
   };
 
   // Error handling
-  const hasError = chatError || memoriesError;
-  const errorMessage = chatError || memoriesError;
+  const hasError = currentError || memoriesError;
+  const errorMessage = currentError || memoriesError;
 
   return (
     <div className="h-screen flex bg-gray-50">
@@ -120,14 +165,37 @@ export default function ChatPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Status indicators */}
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <div className="flex items-center gap-1">
-                  <div className={`w-2 h-2 rounded-full ${hasError ? 'bg-red-500' : 'bg-green-500'}`} />
-                  <span>{hasError ? 'Error' : 'Connected'}</span>
+              {/* Mode toggle and status */}
+              <div className="flex items-center gap-4">
+                {/* Realtime mode toggle */}
+                <button
+                  onClick={handleToggleMode}
+                  className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                    useRealtime 
+                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  ⚡ {useRealtime ? 'Realtime' : 'Standard'}
+                </button>
+                
+                {/* Status indicators */}
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <div className="flex items-center gap-1">
+                    <div className={`w-2 h-2 rounded-full ${
+                      hasError ? 'bg-red-500' : 
+                      useRealtime ? (isConnected ? 'bg-green-500' : 'bg-yellow-500') : 
+                      'bg-green-500'
+                    }`} />
+                    <span>
+                      {hasError ? 'Error' : 
+                       useRealtime ? (isConnected ? 'Realtime' : 'Connecting') : 
+                       'Connected'}
+                    </span>
+                  </div>
+                  <span>•</span>
+                  <span>{memories.length} memories</span>
                 </div>
-                <span>•</span>
-                <span>{memories.length} memories</span>
               </div>
 
               {/* Clear chat button */}
@@ -172,11 +240,12 @@ export default function ChatPage() {
                   Welcome to LexiScope!
                 </h3>
                 <p className="text-gray-600 mb-4">
-                  Start chatting with GPT-5 enhanced by your personal memory bank. 
-                  Your conversations will be remembered and used to personalize future interactions.
+                  Experience real-time AI conversations with GPT-4 enhanced by your personal memory bank. 
+                  Your conversations are remembered and used to personalize future interactions.
                 </p>
-                <div className="text-sm text-gray-500">
-                  💡 Tip: Drag memory bubbles from the sidebar to attach specific context to your messages.
+                <div className="text-sm text-gray-500 space-y-1">
+                  <div>💡 <strong>Tip:</strong> Drag memory bubbles from the sidebar to attach specific context</div>
+                  <div>⚡ <strong>Realtime Mode:</strong> Experience streaming responses with OpenAI's Realtime API</div>
                 </div>
               </div>
             </div>
