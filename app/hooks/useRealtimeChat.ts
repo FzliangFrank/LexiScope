@@ -12,6 +12,7 @@ interface RealtimeMessage {
   content: string;
   timestamp: string;
   isStreaming?: boolean;
+  attachedMemories?: Memory[];
 }
 
 export function useRealtimeChat(userId: string, onMemoriesUpdated?: () => void) {
@@ -157,7 +158,7 @@ export function useRealtimeChat(userId: string, onMemoriesUpdated?: () => void) 
   }, []);
 
   // Send a message
-  const sendMessage = useCallback(async (message: string) => {
+  const sendMessage = useCallback(async (message: string, attachedMemories: Memory[] = []) => {
     if (!sessionId || !message.trim()) return;
 
     try {
@@ -169,6 +170,7 @@ export function useRealtimeChat(userId: string, onMemoriesUpdated?: () => void) 
         role: 'user',
         content: message.trim(),
         timestamp: new Date().toISOString(),
+        attachedMemories: attachedMemories, // Include attached memories for iMessage-style reactions
       };
 
       setMessages(prev => [...prev, userMessage]);
@@ -183,6 +185,7 @@ export function useRealtimeChat(userId: string, onMemoriesUpdated?: () => void) 
         body: JSON.stringify({
           sessionId,
           message: message.trim(),
+          attachedMemories: attachedMemories,
         }),
       });
 

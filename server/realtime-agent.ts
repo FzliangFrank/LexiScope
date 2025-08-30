@@ -108,7 +108,7 @@ Respond naturally and helpfully, using the provided context to resolve ambiguous
     });
   }
 
-  async sendMessage(sessionId: string, message: string): Promise<void> {
+  async sendMessage(sessionId: string, message: string, attachedMemories: Memory[] = []): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) {
       throw new Error('Session not found');
@@ -116,6 +116,11 @@ Respond naturally and helpfully, using the provided context to resolve ambiguous
 
     // Store the user message for conceptual extraction later
     session.lastUserMessage = message;
+
+    // Update session context with attached memories if provided
+    if (attachedMemories.length > 0) {
+      await this.updateSessionMemories(sessionId, attachedMemories);
+    }
 
     // Create conversation item with user message
     const conversationItem: ClientEvent = {

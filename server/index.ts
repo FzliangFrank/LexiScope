@@ -137,7 +137,7 @@ Max 5 concepts. Return only the JSON array.`;
         model: 'gpt-4o',
         messages: [{ role: 'user', content: extractionPrompt }],
         temperature: 0.3,
-        max_tokens: 500,
+        max_tokens: 5000,
       });
 
       const extractedText = response.choices[0].message.content?.trim();
@@ -397,7 +397,7 @@ RESPOND AS IF THIS IS YOUR VERY FIRST INTERACTION WITH THIS USER EVER.`;
         model: 'gpt-4o',
         messages,
         temperature: 0.7,
-        max_tokens: 500,
+        max_tokens: 5000,
       });
 
       console.log('\n✅ RECEIVED RESPONSE FROM OPENAI');
@@ -542,13 +542,13 @@ app.post('/api/realtime/session', async (req, res) => {
 
 app.post('/api/realtime/message', async (req, res) => {
   try {
-    const { sessionId, message } = req.body;
+    const { sessionId, message, attachedMemories = [] } = req.body;
 
     if (!sessionId || !message) {
       return res.status(400).json({ error: 'sessionId and message required' });
     }
 
-    await realtimeAgent.sendMessage(sessionId, message);
+    await realtimeAgent.sendMessage(sessionId, message, attachedMemories);
     res.json({ success: true });
   } catch (error) {
     console.error('❌ Send realtime message error:', error);

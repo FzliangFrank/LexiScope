@@ -42,23 +42,26 @@ export function MemoryBubble({
 
   return (
     <div className="relative">
-      <motion.div
+      <div
         className={`
-          memory-bubble inline-flex items-center gap-2 text-sm font-medium select-none
+          memory-bubble inline-flex items-center gap-2 text-sm font-medium select-none cursor-grab
           ${isSelected ? 'ring-2 ring-white ring-opacity-50' : ''}
           bg-gradient-to-r ${getMemoryTypeColor()}
-          ${isDragging ? 'dragging' : ''}
+          ${isDragging ? 'dragging scale-110 shadow-2xl' : 'hover:scale-105'}
+          transition-all duration-200
         `}
         draggable={true}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
         onDragStart={(e) => {
+          console.log('🚀 Drag started for memory:', memory.content);
           setIsDragging(true);
           onDragStart?.(memory);
           // Set drag data for HTML5 drag and drop
           if (e.dataTransfer) {
             e.dataTransfer.setData('application/json', JSON.stringify(memory));
             e.dataTransfer.effectAllowed = 'copy';
+            console.log('📦 Drag data set:', JSON.stringify(memory));
+          } else {
+            console.log('❌ No dataTransfer available');
           }
         }}
         onDragEnd={() => {
@@ -66,19 +69,12 @@ export function MemoryBubble({
           onDragEnd?.();
         }}
         onClick={() => onClick?.(memory)}
-        onHoverStart={() => setShowTooltip(true)}
-        onHoverEnd={() => setShowTooltip(false)}
-        animate={{
-          y: isDragging ? -5 : 0,
-          boxShadow: isDragging 
-            ? '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-            : '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-        }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
       >
         {getMemoryTypeIcon()}
         <span>{truncateContent(memory.content)}</span>
-      </motion.div>
+      </div>
 
       <AnimatePresence>
         {showTooltip && !isDragging && (

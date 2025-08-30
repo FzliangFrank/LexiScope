@@ -71,12 +71,19 @@ export function ChatInput({
     e.preventDefault();
     setIsDragOver(false);
     
+    console.log('🎯 Drop event triggered in ChatInput');
+    
     try {
       const memoryData = e.dataTransfer.getData('application/json');
+      console.log('📦 Drag data received:', memoryData ? 'Found' : 'Empty');
+      
       if (memoryData && onAttachMemory) {
         const memory = JSON.parse(memoryData);
+        console.log('✅ Parsing memory for attachment:', memory.content);
         onAttachMemory(memory);
         console.log('✅ Memory attached to chat input:', memory.content);
+      } else {
+        console.log('❌ No memory data or onAttachMemory function');
       }
     } catch (error) {
       console.error('❌ Failed to handle dropped memory:', error);

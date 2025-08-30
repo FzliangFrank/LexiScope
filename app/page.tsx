@@ -123,7 +123,7 @@ export default function ChatPage() {
   // Chat handlers
   const handleSendMessage = async (message: string, memories: Memory[]) => {
     if (useRealtime) {
-      await sendRealtimeMessage(message);
+      await sendRealtimeMessage(message, memories);
     } else {
       await sendMessage(message, memories, conversationId);
     }
