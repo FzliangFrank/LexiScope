@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  body {
+    @apply bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen;
+  }
+}
+
+@layer components {
+  .chat-message {
+    @apply rounded-lg p-4 max-w-[80%] break-words;
+  }
+  
+  .chat-message.user {
+    @apply bg-primary-500 text-white ml-auto;
+  }
+  
+  .chat-message.assistant {
+    @apply bg-white border border-gray-200 text-gray-800 mr-auto;
+  }
+  
+  .memory-bubble {
+    @apply bg-gradient-to-r from-memory-400 to-memory-600 text-white rounded-full px-4 py-2 shadow-lg cursor-grab active:cursor-grabbing transform transition-all duration-200 hover:scale-105 hover:shadow-xl;
+  }
+  
+  .memory-bubble.dragging {
+    @apply scale-110 shadow-2xl z-50;
+  }
+  
+  .memory-bubble.attached {
+    @apply bg-gradient-to-r from-green-400 to-green-600;
+  }
+  
+  .chat-input {
+    @apply w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none;
+  }
+  
+  .drop-zone {
+    @apply border-2 border-dashed border-gray-300 rounded-lg p-4 transition-colors duration-200;
+  }
+  
+  .drop-zone.active {
+    @apply border-primary-500 bg-primary-50;
+  }
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
