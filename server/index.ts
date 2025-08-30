@@ -115,11 +115,13 @@ User: "${userMessage}"
 Assistant: "${assistantResponse}"
 
 Extract and return a JSON array of conceptual memories. Each memory should be:
-1. Abstract concepts (like "london", "bagel", "food", "travel")
-2. Entities (like "SF 49ers", "NFL", "American football")  
+1. Specific people/entities (like "Ja'Marr Chase", "Justin Jefferson", "SF 49ers")
+2. Abstract concepts (like "london", "bagel", "food", "travel")
 3. Topics of interest (like "sports", "restaurants", "technology")
 4. Factual information (like "user likes Italian food", "user lives in NYC")
 5. Preferences (like "prefers morning workouts", "interested in AI")
+
+PRIORITIZE specific names, people, places, and entities that can be referenced later.
 
 CRITICAL: Return ONLY a valid JSON array, no explanations, no markdown, no extra text. Just the JSON array:
 
@@ -344,28 +346,63 @@ class SimpleChatAgent {
   ): Promise<ChatResponse> {
     try {
       // Get relevant memories if none selected
+      // ONLY use explicitly selected memories - no automatic memory search
       let relevantMemories = selectedMemories;
-      if (selectedMemories.length === 0) {
-        relevantMemories = await this.memoryManager.searchMemories(message, userId, 3);
-      }
+      // Removed automatic memory search to ensure clean context control
 
-      // Build context
+      // Build context from memories
       const memoryContext = relevantMemories
-        .map(memory => `Memory: ${memory.content}`)
+        .map(memory => `- ${memory.content}`)
         .join('\n');
 
-      const systemPrompt = `You are a helpful AI assistant. ${memoryContext ? `\n\nRelevant memories:\n${memoryContext}` : ''}`;
+      const systemPrompt = `CRITICAL: You are responding to ONE ISOLATED MESSAGE with NO MEMORY of any previous interactions, conversations, or messages. You are starting completely fresh.
 
-      // Generate response
+${memoryContext ? `ATTACHED MEMORY CONTEXT - The user has attached these specific memory bubbles:\n${memoryContext}\n\nRULES:\n1. Use ONLY the entities mentioned in the attached memories above\n2. When user says "he/his/they/it" - refer EXCLUSIVELY to the entities in attached memories\n3. DO NOT mention any other people, topics, or entities not in the attached memories\n4. You have NO knowledge of any previous messages - treat this as your first interaction ever\n\nEXAMPLE: If ONLY "Justin Jefferson" is attached and user asks "his college record" → respond about Justin Jefferson's college stats ONLY. Do not mention anyone else.` : `NO MEMORY CONTEXT - No memory bubbles attached.\n\nRULES:\n1. You have ZERO knowledge of any previous messages or conversations\n2. If user uses ambiguous pronouns (he/his/they/it) without naming someone in their current message, say: "I don't know who you're referring to. Please specify the person's name or attach a memory bubble."\n3. DO NOT assume or guess who they mean based on any previous context\n4. This is a completely isolated request`}
+
+RESPOND AS IF THIS IS YOUR VERY FIRST INTERACTION WITH THIS USER EVER.`;
+
+      // Generate response with completely isolated context
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message }
+      ];
+
+      // DETAILED LOGGING BEFORE API CALL
+      console.log('\n🚀 ===== OPENAI API CALL DEBUG =====');
+      console.log('📝 USER ID:', userId);
+      console.log('📝 CONVERSATION ID:', conversationId);
+      console.log('📝 SELECTED MEMORIES COUNT:', selectedMemories.length);
+      console.log('📝 SELECTED MEMORIES:', selectedMemories.length > 0 ? selectedMemories.map(m => m.content) : 'NONE');
+      console.log('\n📤 EXACT MESSAGES ARRAY SENT TO OPENAI:');
+      console.log('=====================================');
+      messages.forEach((msg, i) => {
+        console.log(`MESSAGE ${i + 1} [${msg.role.toUpperCase()}]:`);
+        console.log(msg.content);
+        console.log('-------------------------------------');
+      });
+      console.log('🎯 MODEL:', 'gpt-4o');
+      console.log('🌡️ TEMPERATURE:', 0.7);
+      console.log('📏 MAX TOKENS:', 500);
+      console.log('===================================== END DEBUG =====\n');
+
+      // PRINT STATEMENTS BEFORE API CALL
+      console.log('\n🚨 FINAL CHECK BEFORE OPENAI CALL 🚨');
+      console.log('System Prompt Length:', systemPrompt.length);
+      console.log('User Message:', message);
+      console.log('Memory Context:', memoryContext || 'NONE');
+      console.log('Selected Memories Count:', selectedMemories.length);
+      console.log('\n🚨 SENDING TO OPENAI NOW 🚨\n');
+
       const response = await this.openai.chat.completions.create({
         model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: message }
-        ],
+        messages,
         temperature: 0.7,
-        max_tokens: 500, // Shorter for demo
+        max_tokens: 500,
       });
+
+      console.log('\n✅ RECEIVED RESPONSE FROM OPENAI');
+      console.log('Response:', response.choices[0].message.content?.substring(0, 100) + '...');
+      console.log('✅ END RESPONSE\n');
 
       const assistantResponse = response.choices[0].message.content || '';
 

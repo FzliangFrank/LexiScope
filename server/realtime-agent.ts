@@ -51,14 +51,14 @@ export class RealtimeAgent {
 
         // Build memory context from selected memories
         const memoryContext = selectedMemories.length > 0 
-          ? selectedMemories.map(m => `Memory: ${m.content}`).join('\n')
+          ? selectedMemories.map(m => `- ${m.content}`).join('\n')
           : '';
 
-        const systemPrompt = `You are a helpful AI assistant with access to the user's conversation history and memories. Use the provided memories to personalize your responses.
+        const systemPrompt = `You are a helpful AI assistant with access to the user's conversation history and memories.
 
-${memoryContext ? `Relevant memories:\n${memoryContext}\n` : ''}
+${memoryContext ? `IMPORTANT CONTEXT - The user has specifically selected these memories as relevant to their questions:\n${memoryContext}\n\nUse this context to understand references like "he", "his", "they", "it", etc. If the user asks about "his record" and the context mentions "Ja'Marr Chase", then "his" refers to Ja'Marr Chase.` : ''}
 
-Respond naturally and helpfully, incorporating relevant information from the memories when appropriate. Keep responses concise and engaging.`;
+Respond naturally and helpfully, using the provided context to resolve ambiguous references and provide personalized information. Keep responses concise and engaging.`;
 
         // Initialize session with text-only mode
         const sessionUpdate: ClientEvent = {
