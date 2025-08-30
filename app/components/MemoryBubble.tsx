@@ -49,13 +49,17 @@ export function MemoryBubble({
           bg-gradient-to-r ${getMemoryTypeColor()}
           ${isDragging ? 'dragging' : ''}
         `}
-        drag
-        dragMomentum={false}
+        draggable={true}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        onDragStart={() => {
+        onDragStart={(e) => {
           setIsDragging(true);
           onDragStart?.(memory);
+          // Set drag data for HTML5 drag and drop
+          if (e.dataTransfer) {
+            e.dataTransfer.setData('application/json', JSON.stringify(memory));
+            e.dataTransfer.effectAllowed = 'copy';
+          }
         }}
         onDragEnd={() => {
           setIsDragging(false);
@@ -74,11 +78,6 @@ export function MemoryBubble({
       >
         {getMemoryTypeIcon()}
         <span>{truncateContent(memory.content)}</span>
-        <div className="flex items-center gap-1 opacity-75">
-          <span className="text-xs">
-            {Math.round(memory.importance * 100)}%
-          </span>
-        </div>
       </motion.div>
 
       <AnimatePresence>

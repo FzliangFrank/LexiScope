@@ -30,7 +30,11 @@
   }
   
   .memory-bubble.dragging {
-    @apply scale-110 shadow-2xl z-50;
+    @apply scale-110 shadow-2xl z-50 opacity-80;
+  }
+  
+  .memory-bubble:active {
+    @apply cursor-grabbing;
   }
   
   .memory-bubble.attached {

@@ -305,8 +305,15 @@ export default function ChatPage() {
           }}
           onDrop={(e) => {
             e.preventDefault();
-            if (draggedMemory) {
-              handleAttachMemory(draggedMemory);
+            try {
+              const memoryData = e.dataTransfer.getData('application/json');
+              if (memoryData) {
+                const memory = JSON.parse(memoryData);
+                handleAttachMemory(memory);
+                console.log('✅ Memory attached via drag and drop:', memory.content);
+              }
+            } catch (error) {
+              console.error('❌ Failed to parse dropped memory:', error);
             }
           }}
         >
@@ -314,7 +321,8 @@ export default function ChatPage() {
             onSendMessage={handleSendMessage}
             attachedMemories={attachedMemories}
             onDetachMemory={handleDetachMemory}
-            isLoading={isChatLoading}
+            onAttachMemory={handleAttachMemory}
+            isLoading={isLoading}
             placeholder="Type your message... (drag memories here to attach context)"
           />
         </div>

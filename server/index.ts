@@ -177,17 +177,33 @@ Max 5 concepts. Return only the JSON array.`;
         console.log('⚠️ Using fallback concept extraction');
       }
 
-      // Store each concept as a separate memory
+      // Check for existing similar memories to avoid duplicates
+      const existingMemories = await this.getAllMemories(userId);
+      
+      // Store each concept as a separate memory (with deduplication)
       for (const conceptData of concepts) {
         if (conceptData.concept && conceptData.concept.trim()) {
-          await this.storeMemory(
-            conceptData.concept.trim(),
-            userId,
-            conversationId,
-            this.determineMemoryType(conceptData.type),
-            conceptData.importance || 0.5
+          const conceptText = conceptData.concept.trim().toLowerCase();
+          
+          // Check if we already have a similar memory
+          const isDuplicate = existingMemories.some(existing => 
+            existing.content.toLowerCase() === conceptText ||
+            existing.content.toLowerCase().includes(conceptText) ||
+            conceptText.includes(existing.content.toLowerCase())
           );
-          console.log(`✅ Stored conceptual memory: "${conceptData.concept}"`);
+          
+          if (!isDuplicate) {
+            await this.storeMemory(
+              conceptData.concept.trim(),
+              userId,
+              conversationId,
+              this.determineMemoryType(conceptData.type),
+              conceptData.importance || 0.5
+            );
+            console.log(`✅ Stored new conceptual memory: "${conceptData.concept}"`);
+          } else {
+            console.log(`⚠️ Skipped duplicate memory: "${conceptData.concept}"`);
+          }
         }
       }
     } catch (error) {
@@ -209,6 +225,39 @@ Max 5 concepts. Return only the JSON array.`;
     };
     
     return typeMapping[conceptType.toLowerCase()] || 'context';
+  }
+
+  async cleanupDuplicateMemories(userId: string): Promise<void> {
+    try {
+      const memories = await this.getAllMemories(userId);
+      const seen = new Set<string>();
+      const duplicateIds: string[] = [];
+
+      // Find duplicates (case-insensitive)
+      for (const memory of memories) {
+        const normalizedContent = memory.content.toLowerCase().trim();
+        if (seen.has(normalizedContent)) {
+          duplicateIds.push(memory._additional.id);
+        } else {
+          seen.add(normalizedContent);
+        }
+      }
+
+      // Delete duplicates from Weaviate
+      if (duplicateIds.length > 0) {
+        const collection = this.client.collections.use(this.className);
+        for (const id of duplicateIds) {
+          try {
+            await collection.data.deleteById(id);
+          } catch (error) {
+            console.error(`❌ Failed to delete duplicate memory ${id}:`, error);
+          }
+        }
+        console.log(`✅ Cleaned up ${duplicateIds.length} duplicate memories`);
+      }
+    } catch (error) {
+      console.error('❌ Cleanup duplicates error:', error);
+    }
   }
 
   async searchMemories(query: string, userId: string, limit = 5): Promise<Memory[]> {
@@ -418,6 +467,22 @@ app.post('/api/memories/search', async (req, res) => {
   } catch (error) {
     console.error('❌ Search error:', error);
     res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+app.post('/api/memories/cleanup/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId required' });
+    }
+
+    await memoryManager.cleanupDuplicateMemories(userId);
+    res.json({ success: true, message: 'Duplicates cleaned up' });
+  } catch (error) {
+    console.error('❌ Cleanup error:', error);
+    res.status(500).json({ error: 'Cleanup failed' });
   }
 });
 

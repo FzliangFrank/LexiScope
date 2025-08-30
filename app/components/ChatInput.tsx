@@ -9,6 +9,7 @@ interface ChatInputProps {
   onSendMessage: (message: string, selectedMemories: Memory[]) => void;
   attachedMemories: Memory[];
   onDetachMemory: (memory: Memory) => void;
+  onAttachMemory?: (memory: Memory) => void;
   isLoading?: boolean;
   placeholder?: string;
 }
@@ -17,6 +18,7 @@ export function ChatInput({
   onSendMessage,
   attachedMemories,
   onDetachMemory,
+  onAttachMemory,
   isLoading = false,
   placeholder = "Type your message...",
 }: ChatInputProps) {
@@ -68,7 +70,17 @@ export function ChatInput({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    // Note: Drag and drop handling is implemented in the parent component
+    
+    try {
+      const memoryData = e.dataTransfer.getData('application/json');
+      if (memoryData && onAttachMemory) {
+        const memory = JSON.parse(memoryData);
+        onAttachMemory(memory);
+        console.log('✅ Memory attached to chat input:', memory.content);
+      }
+    } catch (error) {
+      console.error('❌ Failed to handle dropped memory:', error);
+    }
   };
 
   const truncateMemoryContent = (content: string, maxLength = 30) => {
