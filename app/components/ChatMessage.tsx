@@ -46,25 +46,27 @@ export function ChatMessage({ message }: ChatMessageProps) {
         `}>
           <div className="whitespace-pre-wrap">{message.content}</div>
           
-          {/* Used memories indicator */}
-          {!isUser && message.usedMemories && message.usedMemories.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-200">
-              <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
-                <Brain className="w-3 h-3" />
-                <span>Used {message.usedMemories.length} memory(s)</span>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {message.usedMemories.map((memory, index) => (
-                  <span
+          {/* Memory reactions - iMessage style (only on user messages) */}
+          {isUser && message.attachedMemories && message.attachedMemories.length > 0 && (
+            <div className="mt-2">
+              <div className="flex flex-wrap gap-1 justify-end">
+                {message.attachedMemories.map((memory, index) => (
+                  <motion.div
                     key={index}
-                    className="inline-block px-2 py-1 bg-memory-100 text-memory-800 text-xs rounded-full"
-                    title={memory.content}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="memory-reaction inline-flex items-center gap-1 px-2 py-1"
+                    title={`Attached memory: ${memory.content}`}
                   >
-                    {memory.content.length > 20 
-                      ? memory.content.substring(0, 20) + '...' 
-                      : memory.content
-                    }
-                  </span>
+                    <Brain className="w-2.5 h-2.5" />
+                    <span>
+                      {memory.content.length > 15 
+                        ? memory.content.substring(0, 15) + '...' 
+                        : memory.content
+                      }
+                    </span>
+                  </motion.div>
                 ))}
               </div>
             </div>

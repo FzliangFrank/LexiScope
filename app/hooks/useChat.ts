@@ -23,6 +23,7 @@ export function useChat(userId: string, onMemoriesUpdated?: () => void) {
       role: 'user',
       content: content.trim(),
       timestamp: new Date().toISOString(),
+      attachedMemories: selectedMemories, // Store which memories were attached
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -56,6 +57,12 @@ export function useChat(userId: string, onMemoriesUpdated?: () => void) {
         timestamp: new Date().toISOString(),
         usedMemories: data.usedMemories,
       };
+
+      // Debug logging for memory reactions
+      console.log('💬 Assistant message created with usedMemories:', data.usedMemories?.length || 0);
+      if (data.usedMemories && data.usedMemories.length > 0) {
+        console.log('🧠 Used memories:', data.usedMemories.map(m => m.content));
+      }
 
       setMessages(prev => [...prev, assistantMessage]);
       

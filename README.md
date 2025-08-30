@@ -1,4 +1,4 @@
-# LexiScope - Hackathon Demo 🚀
+# LexiScope - smarter memory for your LLM chats
 
 A selective retrieval chat interface for GPT-4 with personalized memory bubbles! Built for hackathons with quick setup and impressive demos.
 

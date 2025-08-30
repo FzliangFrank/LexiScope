@@ -17,6 +17,7 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   usedMemories?: Memory[];
+  attachedMemories?: Memory[]; // Memories attached by user to this message
 }
 
 export interface ChatResponse {

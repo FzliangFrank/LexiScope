@@ -86,8 +86,13 @@ export default function ChatPage() {
 
   // Attach/detach memory handlers
   const handleAttachMemory = (memory: Memory) => {
-    if (!attachedMemories.some(m => m._additional.id === memory._additional.id)) {
+    const isAlreadyAttached = attachedMemories.some(m => m._additional.id === memory._additional.id);
+    
+    if (!isAlreadyAttached) {
+      console.log('✅ Attaching memory:', memory.content);
       setAttachedMemories(prev => [...prev, memory]);
+    } else {
+      console.log('⚠️ Memory already attached, skipping:', memory.content);
     }
   };
 
@@ -298,26 +303,7 @@ export default function ChatPage() {
         </div>
 
         {/* Chat Input */}
-        <div 
-          className="flex-shrink-0"
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'copy';
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            try {
-              const memoryData = e.dataTransfer.getData('application/json');
-              if (memoryData) {
-                const memory = JSON.parse(memoryData);
-                handleAttachMemory(memory);
-                console.log('✅ Memory attached via drag and drop:', memory.content);
-              }
-            } catch (error) {
-              console.error('❌ Failed to parse dropped memory:', error);
-            }
-          }}
-        >
+        <div className="flex-shrink-0">
           <ChatInput
             onSendMessage={handleSendMessage}
             attachedMemories={attachedMemories}
