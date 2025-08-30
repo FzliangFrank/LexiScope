@@ -33,8 +33,15 @@ export default function ChatPage() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Hooks
-  const { messages: regularMessages, isLoading: isChatLoading, error: chatError, sendMessage, clearMessages } = useChat(userId);
+  // Hooks - order matters to avoid circular dependencies
+  const { 
+    memories, 
+    isLoading: isMemoriesLoading, 
+    error: memoriesError, 
+    fetchMemories 
+  } = useMemories(userId);
+  
+  const { messages: regularMessages, isLoading: isChatLoading, error: chatError, sendMessage, clearMessages } = useChat(userId, fetchMemories);
   const { 
     messages: realtimeMessages, 
     isConnected, 
@@ -45,13 +52,7 @@ export default function ChatPage() {
     sendMessage: sendRealtimeMessage,
     updateMemories: updateRealtimeMemories,
     clearMessages: clearRealtimeMessages,
-  } = useRealtimeChat(userId);
-  const { 
-    memories, 
-    isLoading: isMemoriesLoading, 
-    error: memoriesError, 
-    fetchMemories 
-  } = useMemories(userId);
+  } = useRealtimeChat(userId, fetchMemories);
 
   // Use appropriate messages and loading states based on mode
   const messages = useRealtime ? realtimeMessages : regularMessages;

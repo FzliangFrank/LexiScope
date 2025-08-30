@@ -48,36 +48,12 @@ Next.js Frontend ←→ TypeScript API ←→ Weaviate Vector DB
 
 **That's it! 🎉**
 
-## 🎮 Demo Flow
-
-### Perfect for Hackathon Demos!
-
-1. **Start Chatting** - Type anything, watch memories auto-create
-2. **See Memory Bubbles** - Purple bubbles appear in left sidebar  
-3. **Drag & Drop Magic** - Drag bubbles to chat input for context
-4. **Personalized Responses** - GPT uses your selected memories
-5. **Search Memories** - Find specific conversations instantly
-
-### Pro Demo Tips 💡
-- Chat about different topics to build diverse memories
-- Show the drag-and-drop interaction - it's impressive!
-- Search for memories to demonstrate semantic similarity
-- Highlight how responses change with/without memory context
-
 ## 🛠️ Tech Stack
 
 - **Frontend**: Next.js 14, TypeScript, Tailwind CSS, Framer Motion
 - **Backend**: Express.js + TypeScript, OpenAI SDK, Weaviate Client  
 - **Database**: Weaviate Vector Database
-- **AI**: OpenAI GPT-4 + Embeddings
-
-## 🏆 Hackathon-Ready Features
-
-- ⚡ **Quick Setup**: One command installation
-- 🎨 **Demo-Perfect UI**: Smooth animations, beautiful gradients
-- 🧠 **Impressive Tech**: Vector embeddings, semantic search
-- 🎯 **Clear Value Prop**: Visual memory + personalized AI
-- 📱 **Mobile Friendly**: Responsive design
+- **AI**: OpenAI realtime API, GPT-4o + Embeddings
 
 ## 🚀 Production Notes
 
@@ -102,6 +78,3 @@ docker-compose down && docker-compose up -d
 - Run `npm install` again
 - Check both servers are running
 
----
-
-**Built for hackathons** 🏆 **Ready to impress judges** ⚡ **Deploy in minutes** 🚀

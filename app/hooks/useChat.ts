@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-export function useChat(userId: string) {
+export function useChat(userId: string, onMemoriesUpdated?: () => void) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +58,13 @@ export function useChat(userId: string) {
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+      
+      // Trigger memory refresh after successful response
+      if (onMemoriesUpdated) {
+        setTimeout(() => {
+          onMemoriesUpdated();
+        }, 1000); // Small delay to allow memory extraction to complete
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred';
       setError(errorMessage);
@@ -65,7 +72,7 @@ export function useChat(userId: string) {
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, [userId, onMemoriesUpdated]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);

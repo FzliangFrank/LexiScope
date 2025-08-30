@@ -14,7 +14,7 @@ interface RealtimeMessage {
   isStreaming?: boolean;
 }
 
-export function useRealtimeChat(userId: string) {
+export function useRealtimeChat(userId: string, onMemoriesUpdated?: () => void) {
   const [messages, setMessages] = useState<RealtimeMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -137,6 +137,13 @@ export function useRealtimeChat(userId: string) {
               : msg
           )
         );
+        
+        // Trigger memory refresh after response completes
+        if (onMemoriesUpdated) {
+          setTimeout(() => {
+            onMemoriesUpdated();
+          }, 1000);
+        }
         break;
 
       case 'error':
