@@ -2,12 +2,17 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
-import weaviate, { WeaviateClient } from 'weaviate-ts-client';
+import weaviate, { WeaviateClient, vectors } from 'weaviate-client';
 import { v4 as uuidv4 } from 'uuid';
 import { Memory, ChatRequest, ChatResponse, MemoryRequest, SearchRequest } from './types';
 
 // Load environment variables
 dotenv.config();
+
+// Set OPENAI_APIKEY for Weaviate (without underscore)
+if (process.env.OPENAI_API_KEY && !process.env.OPENAI_APIKEY) {
+  process.env.OPENAI_APIKEY = process.env.OPENAI_API_KEY;
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -19,12 +24,6 @@ app.use(express.json());
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
-});
-
-// Initialize Weaviate client
-const weaviateClient: WeaviateClient = weaviate.client({
-  scheme: 'http',
-  host: process.env.WEAVIATE_URL?.replace('http://', '') || 'localhost:8080',
 });
 
 // Simplified Memory Manager for hackathon
@@ -40,29 +39,33 @@ class SimpleMemoryManager {
 
   async initSchema(): Promise<void> {
     try {
-      const exists = await this.client.schema.exists(this.className).do();
+      const exists = await this.client.collections.exists(this.className);
       
-      if (!exists) {
-        await this.client.schema
-          .classCreator()
-          .withClass({
-            class: this.className,
-            description: 'Simple memory storage for hackathon',
-            vectorizer: 'none',
-            properties: [
-              { name: 'content', dataType: ['text'] },
-              { name: 'timestamp', dataType: ['date'] },
-              { name: 'userId', dataType: ['string'] },
-              { name: 'conversationId', dataType: ['string'] },
-              { name: 'memoryType', dataType: ['string'] },
-              { name: 'importance', dataType: ['number'] },
-            ],
-          })
-          .do();
-        console.log('✅ Memory schema initialized');
+      if (exists) {
+        // Delete existing collection to recreate with correct schema
+        console.log('🔄 Deleting existing collection to fix schema...');
+        await this.client.collections.delete(this.className);
       }
+      
+      await this.client.collections.create({
+        name: this.className,
+        properties: [
+          { name: 'content', dataType: 'text' },
+          { name: 'timestamp', dataType: 'text' },
+          { name: 'userId', dataType: 'text' },
+          { name: 'conversationId', dataType: 'text' },
+          { name: 'memoryType', dataType: 'text' },
+          { name: 'importance', dataType: 'number' },
+        ],
+        vectorizers: vectors.text2VecOpenAI({
+          model: 'text-embedding-3-small',
+        }),
+      });
+      console.log('✅ Memory schema initialized with correct types');
     } catch (error) {
       console.error('❌ Schema init error:', error);
+      // For hackathon, continue even if schema init fails
+      console.log('⚠️ Continuing without schema validation...');
     }
   }
 
@@ -74,25 +77,21 @@ class SimpleMemoryManager {
     importance = 0.5
   ): Promise<string> {
     try {
-      // Generate embedding
-      const embedding = await this.generateEmbedding(content);
       const memoryId = uuidv4();
       
-      await this.client.data
-        .creator()
-        .withClassName(this.className)
-        .withId(memoryId)
-        .withProperties({
+      const collection = this.client.collections.use(this.className);
+      await collection.data.insert({
+        properties: {
           content,
           timestamp: new Date().toISOString(),
           userId,
           conversationId,
           memoryType,
           importance,
-        })
-        .withVector(embedding)
-        .do();
+        },
+      });
 
+      console.log('✅ Memory stored in Weaviate');
       return memoryId;
     } catch (error) {
       console.error('❌ Store memory error:', error);
@@ -102,18 +101,29 @@ class SimpleMemoryManager {
 
   async searchMemories(query: string, userId: string, limit = 5): Promise<Memory[]> {
     try {
-      const queryEmbedding = await this.generateEmbedding(query);
-      
-      const result = await this.client.graphql
-        .get()
-        .withClassName(this.className)
-        .withFields('content timestamp userId conversationId memoryType importance _additional { id distance }')
-        .withNearVector({ vector: queryEmbedding, distance: 0.7 })
-        .withWhere({ path: ['userId'], operator: 'Equal', valueString: userId })
-        .withLimit(limit)
-        .do();
+      const collection = this.client.collections.use(this.className);
+      const result = await collection.query.nearText(query, {
+        limit: limit * 2, // Get more results to filter by userId
+        returnMetadata: ['distance'],
+      });
 
-      return result.data.Get[this.className] || [];
+      // Filter by userId in the results
+      const filteredResults = result.objects
+        .filter((obj: any) => obj.properties.userId === userId)
+        .slice(0, limit);
+
+      return filteredResults.map((obj: any) => ({
+        content: obj.properties.content,
+        timestamp: obj.properties.timestamp,
+        userId: obj.properties.userId,
+        conversationId: obj.properties.conversationId,
+        memoryType: obj.properties.memoryType,
+        importance: obj.properties.importance,
+        _additional: {
+          id: obj.uuid,
+          distance: obj.metadata?.distance,
+        },
+      }));
     } catch (error) {
       console.error('❌ Search error:', error);
       return [];
@@ -122,15 +132,27 @@ class SimpleMemoryManager {
 
   async getAllMemories(userId: string): Promise<Memory[]> {
     try {
-      const result = await this.client.graphql
-        .get()
-        .withClassName(this.className)
-        .withFields('content timestamp userId conversationId memoryType importance _additional { id }')
-        .withWhere({ path: ['userId'], operator: 'Equal', valueString: userId })
-        .withLimit(50) // Limit for hackathon
-        .do();
+      const collection = this.client.collections.use(this.className);
+      const result = await collection.query.fetchObjects({
+        limit: 50, // Limit for hackathon
+      });
 
-      return result.data.Get[this.className] || [];
+      // Filter by userId in the results
+      const filteredResults = result.objects
+        .filter((obj: any) => obj.properties.userId === userId)
+        .sort((a: any, b: any) => new Date(b.properties.timestamp).getTime() - new Date(a.properties.timestamp).getTime());
+
+      return filteredResults.map((obj: any) => ({
+        content: obj.properties.content,
+        timestamp: obj.properties.timestamp,
+        userId: obj.properties.userId,
+        conversationId: obj.properties.conversationId,
+        memoryType: obj.properties.memoryType,
+        importance: obj.properties.importance,
+        _additional: {
+          id: obj.uuid,
+        },
+      }));
     } catch (error) {
       console.error('❌ Get memories error:', error);
       return [];
@@ -204,9 +226,9 @@ class SimpleChatAgent {
   }
 }
 
-// Initialize services
-const memoryManager = new SimpleMemoryManager(weaviateClient, openai);
-const chatAgent = new SimpleChatAgent(openai, memoryManager);
+// Services will be initialized in startServer function
+let memoryManager: SimpleMemoryManager;
+let chatAgent: SimpleChatAgent;
 
 // Routes
 app.get('/health', (req, res) => {
@@ -288,6 +310,18 @@ app.post('/api/memories/search', async (req, res) => {
 // Start server
 async function startServer() {
   try {
+    // Initialize Weaviate client with OpenAI API key
+    const weaviateClient: WeaviateClient = await weaviate.connectToLocal({
+      headers: {
+        'X-OpenAI-Api-Key': process.env.OPENAI_API_KEY!,
+      },
+    });
+
+    // Initialize services
+    memoryManager = new SimpleMemoryManager(weaviateClient, openai);
+    chatAgent = new SimpleChatAgent(openai, memoryManager);
+
+    // Initialize schema
     await memoryManager.initSchema();
     
     app.listen(PORT, () => {
